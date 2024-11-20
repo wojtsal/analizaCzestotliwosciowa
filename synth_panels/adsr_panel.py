@@ -15,7 +15,7 @@ class ADSRPanel(QWidget):
         self.name = name
         self.attack = 0.1
         self.decay = 0.5
-        self.sustain = 0.0
+        self.sustain = 0.5
         self.release = 0.1
         self.initUI()
 
@@ -65,8 +65,8 @@ class ADSRPanel(QWidget):
         release_layout = QHBoxLayout()
         release_label = QLabel("Release")
         self.release_slider = QSlider(Qt.Orientation.Horizontal)
-        self.release_slider.setRange(0, 1000) #ms
-        self.release_slider.setValue(int(self.release * 1000))
+        self.release_slider.setRange(0, 2000) #ms
+        self.release_slider.setValue(int(self.release * 2000))
         self.release_slider.valueChanged.connect(self.change_release)
         release_layout.addWidget(release_label)
         release_layout.addWidget(self.release_slider)

@@ -5,61 +5,71 @@ import random
 
 class ADSREnvelope:
     def __init__(self, attack_time, decay_time, sustain_level, release_time, sample_rate):
-        self.attack_time = attack_time
-        self.decay_time = decay_time
+        self.attack_time = max(attack_time, 1e-7)  # Avoid division by zero
+        self.decay_time = max(decay_time, 1e-7)
         self.sustain_level = sustain_level
-        self.release_time = release_time
+        self.release_time = max(release_time, 1e-7)
         self.sample_rate = sample_rate
         self.state = 'idle'
         self.current_amplitude = 0.0
-
+        self.note_released = False
 
     def note_on(self):
         self.state = 'attack'
         self.current_amplitude = 0.0
+        self.note_released = False
+        self.time_in_state = 0.0
 
     def note_off(self):
-        self.state = 'release'
+        if self.state != 'idle':
+            self.note_released = True
+            print("note_off called: transitioning to release phase")
 
     def process(self, num_frames):
         envelope = np.zeros(num_frames)
         for i in range(num_frames):
             if self.state == 'attack':
-                envelope[i] = self.current_amplitude
-                increment = 1.0 / (self.attack_time * self.sample_rate)
-                self.current_amplitude += increment
+                self.current_amplitude += 1.0 / (self.attack_time * self.sample_rate)
                 if self.current_amplitude >= 1.0:
                     self.current_amplitude = 1.0
                     self.state = 'decay'
-            elif self.state == 'decay':
                 envelope[i] = self.current_amplitude
-                decrement = (1.0 - self.sustain_level) / (self.decay_time * self.sample_rate)
-                self.current_amplitude -= decrement
+            elif self.state == 'decay':
+                self.current_amplitude -= (1.0 - self.sustain_level) / (self.decay_time * self.sample_rate)
                 if self.current_amplitude <= self.sustain_level:
                     self.current_amplitude = self.sustain_level
                     self.state = 'sustain'
-            elif self.state == 'sustain':
-                envelope[i] = self.sustain_level
-            elif self.state == 'release':
                 envelope[i] = self.current_amplitude
-                decrement = self.sustain_level / (self.release_time * self.sample_rate)
-                self.current_amplitude -= decrement
-                if self.current_amplitude <= 0.0:
+            elif self.state == 'sustain':
+                if self.note_released:
+                    self.state = 'release'
+                    self.time_in_state = 0.0
+                    self.release_start_amplitude = self.current_amplitude
+                    print("Transitioning to release phase from sustain")
+                envelope[i] = self.current_amplitude
+            elif self.state == 'release':
+                self.time_in_state += 1 / self.sample_rate
+                if self.time_in_state >= self.release_time:
                     self.current_amplitude = 0.0
                     self.state = 'idle'
+                    self.note_released = False
+                    print("Envelope reached zero, transitioning to idle state")
+                else:
+                    self.current_amplitude = self.release_start_amplitude * (1 - self.time_in_state / self.release_time)
+                envelope[i] = self.current_amplitude
             else:  # 'idle'
                 envelope[i] = 0.0
+                self.current_amplitude = 0.0
         return envelope
-
 class Note:
-    def __init__(self, frequency, velocity, sample_rate):
+    def __init__(self, frequency, velocity, sample_rate, adsr_params):
         self.frequency = frequency
         self.velocity = velocity
         self.envelope = ADSREnvelope(
-            attack_time=1,    # Increased attack time to 50 ms
-            decay_time=0.1,
-            sustain_level=0.8,
-            release_time=0.2,
+            attack_time=adsr_params['attack_time'],
+            decay_time=adsr_params['decay_time'],
+            sustain_level=adsr_params['sustain_level'],
+            release_time=adsr_params['release_time'],
             sample_rate=sample_rate
         )
         self.envelope.note_on()
@@ -75,20 +85,21 @@ class Generator:
         self.lock = threading.Lock()
         self.last_processed_samples = np.zeros(1)  # Initialize with a single zero
 
-    def add_note(self, frequency, velocity, MAX_POLYPHONY=16):
+    def add_note(self, frequency, velocity, adsr_params, MAX_POLYPHONY=16):
         with self.lock:
             if len(self.active_notes) >= MAX_POLYPHONY:
                 oldest_note = self.active_notes.pop(0)
                 keys_to_remove = [key for key in self.phase if key[0] == oldest_note]
                 for key in keys_to_remove:
                     del self.phase[key]
-            note = Note(frequency, velocity, self.sample_rate)
+            note = Note(frequency, velocity, self.sample_rate, adsr_params)
             self.active_notes.append(note)
 
     def remove_note(self, frequency):
         with self.lock:
             for note in self.active_notes:
                 if note.frequency == frequency:
+
                     note.envelope.note_off()
                     note.active = False
 
@@ -124,8 +135,7 @@ class Generator:
             velocity = note.velocity
             note_buffer = np.zeros((num_frames, 2))  # Stereo buffer for the note
             envelope = note.envelope.process(num_frames)
-            if np.all(envelope == 0.0) and not note.active:
-                # Note has finished releasing
+            if note.envelope.state == 'idle':
                 notes_to_remove.append(note)
                 continue
             for osc in self.oscillators:
@@ -204,3 +214,7 @@ class Generator:
                     del self.phase[key]
 
         return buffer
+
+    def has_active_notes(self):
+        with self.lock:
+            return len(self.active_notes) > 0

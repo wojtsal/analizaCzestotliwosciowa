@@ -8,10 +8,12 @@ class InfoWindow(QMainWindow):
     start_recording_signal = pyqtSignal()
     stop_recording_signal = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, main_window):
         super().__init__()
+        self.main_window = main_window
         self.setWindowTitle("Info Window")
         self.initUI()
+
 
         # Connect the signals to the update methods
         self.update_data_signal.connect(self.update_displays)
@@ -55,8 +57,15 @@ class InfoWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
     def update_info(self, samples, sample_rate=44100):
+        if not self.is_recording:
+            return
         self.sample_rate = sample_rate
         self.update_data_signal.emit(samples)
+
+        if not self.main_window.generator.has_active_notes():
+            # No active notes; stop recording and freeze the display
+            self.stop_recording()
+
 
     def update_displays(self, samples):
         try:

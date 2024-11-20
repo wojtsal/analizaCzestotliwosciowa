@@ -86,8 +86,8 @@ class FilterPanel(QWidget):
             raise ValueError("Invalid filter type")
 
         # Apply the filter to each channel
-        #filtered_signal = lfilter(b, a, y, axis=0)
-        filtered_signal = filtfilt(b, a, y, axis=0)
+        filtered_signal = lfilter(b, a, y, axis=0)
+        # filtered_signal = filtfilt(b, a, y, axis=0)
 
         return filtered_signal
 

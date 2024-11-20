@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
         self.initMidiHandlers()
 
         # Create the FFT window **before** starting the audio stream
-        self.info_window = InfoWindow()
+        self.info_window = InfoWindow(main_window=self)
         self.info_window.show()
 
         self.initAudioStream()
@@ -178,19 +178,20 @@ class MainWindow(QMainWindow):
             # Send samples to InfoWindow
             self.info_window.update_info(processed_samples, sample_rate=self.generator.sample_rate)
 
-
     def handle_note_on(self, note_number, velocity):
         frequency = midi_note_number_to_frequency(note_number)
-        amplitude = velocity / 100  # Scale amplitude based on velocity
-        self.generator.add_note(frequency, amplitude)
-        self.info_window.start_recording()
+        amplitude = velocity / 127.0  # Scale amplitude based on velocity
+        adsr_params = self.synth_panel.get_adsr_params()
+        self.generator.add_note(frequency, amplitude, adsr_params)
         print(f"Note On: {note_number} ({frequency:.2f} Hz), Velocity: {velocity}")
 
+        # Start recording if not already recording
+        if not self.info_window.is_recording:
+            self.info_window.start_recording()
+
     def handle_note_off(self, note_number):
-        print(f"handle_note_off called with note_number={note_number}, type={type(note_number)}")
         frequency = midi_note_number_to_frequency(note_number)
         self.generator.remove_note(frequency)
-        self.info_window.stop_recording()
         print(f"Removed note {note_number} ({frequency:.2f} Hz) from generator")
 
     def handle_controller(self, controller_number, controller_value):
