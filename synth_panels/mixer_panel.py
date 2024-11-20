@@ -30,7 +30,7 @@ class MixerPanel(QWidget):
             label = QLabel(osc.name)
             slider = QSlider(Qt.Orientation.Horizontal)
             slider.setRange(0, 100)
-            slider.setValue(100)  # Default volume at 100%
+            slider.setValue(50)  # Default volume at 100%
             slider.valueChanged.connect(lambda value, o=osc: self.set_volume(o, value))
             osc_layout.addWidget(label)
             osc_layout.addWidget(slider)

@@ -83,13 +83,11 @@ class ChorusPanel(QWidget):
         print(f"{self.name} - Mix set to {self.mix * 100:.0f}%")
 
     def apply_chorus(self, signal, sample_rate=44100):
-        # Ensure signal is stereo
+        # Ensure signal is stereo with shape (num_frames, 2)
         if signal.ndim == 1:
-            signal = np.vstack((signal, signal))
-        elif signal.shape[0] != 2:
-            raise ValueError("Signal should be mono or stereo with shape (2, N)")
+            signal = np.column_stack((signal, signal))
 
-        N = signal.shape[1]
+        N = signal.shape[0]
         max_delay_samples = int(self.depth * sample_rate)
 
         # Create LFOs for modulation
@@ -107,13 +105,13 @@ class ChorusPanel(QWidget):
         indices_right = indices - delay_right
 
         # Ensure indices are within valid range
-        indices_left[indices_left < 0] = 0
-        indices_right[indices_right < 0] = 0
+        indices_left = np.clip(indices_left, 0, N - 1)
+        indices_right = np.clip(indices_right, 0, N - 1)
 
-        delayed_left = signal[0, indices_left]
-        delayed_right = signal[1, indices_right]
+        delayed_left = signal[indices_left, 0]
+        delayed_right = signal[indices_right, 1]
 
-        delayed_signal = np.vstack((delayed_left, delayed_right))
+        delayed_signal = np.column_stack((delayed_left, delayed_right))
 
         # Adjust the mix calculation
         output = signal + self.mix * (delayed_signal - signal)

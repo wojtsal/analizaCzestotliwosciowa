@@ -52,11 +52,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Multi-Oscillator Synthesizer")
         self.initUI()
         self.initMidiHandlers()
-        self.initAudioStream()
 
-        # Create the FFT window
+        # Create the FFT window **before** starting the audio stream
         self.info_window = InfoWindow()
         self.info_window.show()
+
+        self.initAudioStream()
 
         # Timer to update FFT
         self.timer = QTimer()
@@ -159,7 +160,7 @@ class MainWindow(QMainWindow):
         self.stream = sd.OutputStream(
             samplerate=44100,
             channels=2,  # Number of output channels for stereo
-            callback=self.audio_callback
+            callback=self.audio_callback  # Ensure this method is defined
         )
         self.stream.start()
 
@@ -172,11 +173,15 @@ class MainWindow(QMainWindow):
             outdata.fill(0)
         else:
             processed_samples = self.synth_panel.process_samples(samples)
-            outdata[:] = processed_samples.T
+            outdata[:] = processed_samples  # Ensure correct shape without transposing
+
+            # Send samples to InfoWindow
+            self.info_window.update_info(processed_samples, sample_rate=self.generator.sample_rate)
+
 
     def handle_note_on(self, note_number, velocity):
         frequency = midi_note_number_to_frequency(note_number)
-        amplitude = velocity / 127.0  # Scale amplitude based on velocity
+        amplitude = velocity / 100  # Scale amplitude based on velocity
         self.generator.add_note(frequency, amplitude)
         self.info_window.start_recording()
         print(f"Note On: {note_number} ({frequency:.2f} Hz), Velocity: {velocity}")
@@ -197,7 +202,7 @@ class MainWindow(QMainWindow):
         for osc in self.oscillators:
             osc.reference_frequency = 440
             osc.update_plots()
-        self.on_play(velocity=127)
+        self.on_play(velocity=100)
 
     def on_play(self, velocity=127.0):
         print("Playing mixed sound...")

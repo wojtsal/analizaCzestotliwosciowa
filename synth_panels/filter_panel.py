@@ -12,6 +12,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 import numpy as np
 from scipy.signal import butter, lfilter
+from scipy.signal import filtfilt
+
 
 
 class FilterPanel(QWidget):
@@ -81,9 +83,11 @@ class FilterPanel(QWidget):
         elif self.filter_type == 'high_pass':
             b, a = butter(order, normal_cutoff, btype='high', analog=False)
         else:
-            raise ValueError("Error")
+            raise ValueError("Invalid filter type")
 
-        filtered_signal = lfilter(b, a, y, axis=0)
+        # Apply the filter to each channel
+        #filtered_signal = lfilter(b, a, y, axis=0)
+        filtered_signal = filtfilt(b, a, y, axis=0)
 
         return filtered_signal
 

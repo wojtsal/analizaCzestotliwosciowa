@@ -23,6 +23,9 @@ class InfoWindow(QMainWindow):
         self.recorded_samples = []
         self.sample_rate = 44100  # Default sample rate
 
+        # Sample buffer for accumulating samples
+        self.sample_buffer = np.array([])
+
     def initUI(self):
         central_widget = QWidget()
         layout = QVBoxLayout()
@@ -60,9 +63,17 @@ class InfoWindow(QMainWindow):
             # Ensure samples are in the correct shape
             if samples.ndim == 2:
                 # Convert stereo to mono
-                samples = samples.mean(axis=0)
+                samples = samples.mean(axis=1)
 
-            N = len(samples)
+            # Accumulate samples
+            self.sample_buffer = np.concatenate((self.sample_buffer, samples))
+
+            # Limit the buffer size to, e.g., 4096 samples
+            if len(self.sample_buffer) > 4096:
+                self.sample_buffer = self.sample_buffer[-4096:]
+
+            samples_to_plot = self.sample_buffer.copy()
+            N = len(samples_to_plot)
             if N == 0:
                 return  # Avoid division by zero
 
@@ -71,13 +82,13 @@ class InfoWindow(QMainWindow):
 
             # Update live waveform plot
             self.plot_waveform.clear()
-            self.plot_waveform.plot(t, samples, pen='c')
+            self.plot_waveform.plot(t, samples_to_plot, pen='c')
             self.plot_waveform.setXRange(0, N / self.sample_rate)
-            self.plot_waveform.setYRange(samples.min() * 1.1, samples.max() * 1.1)
+            self.plot_waveform.setYRange(samples_to_plot.min() * 1.1, samples_to_plot.max() * 1.1)
 
             # Apply a window function to reduce spectral leakage
             window = np.hanning(N)
-            samples_windowed = samples * window
+            samples_windowed = samples_to_plot * window
 
             # Compute FFT
             yf_full = np.fft.fft(samples_windowed)

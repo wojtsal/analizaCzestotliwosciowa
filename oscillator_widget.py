@@ -22,7 +22,7 @@ class OscillatorWidget(QWidget):
     def __init__(self, name="Oscillator", default_shape='sine', default_pitch=0, default_octave=0, default_fine=0):
         super().__init__()
         self.name = name
-        self.volume = 0.5
+        self.volume = 1
 
         self.shape = default_shape
         self.base_octave = default_octave

@@ -41,9 +41,6 @@ class SynthPanel(QWidget):
 
     def process_samples(self, samples):
         with self.lock:
-            # Apply mixer (if needed)
-            # mixed_samples = self.mixer.mix_signals(samples)
-
             # Apply filter
             filtered_samples = self.filter.apply_filter(samples)
 
@@ -53,9 +50,8 @@ class SynthPanel(QWidget):
             # Store the last processed samples for FFT visualization
             self.last_processed_samples = chorused_samples.copy()
 
-            return chorused_samples  # Return the processed samples
+            return chorused_samples
 
-    from scipy import signal
 
     def apply_limiter(self, samples, threshold=0.9):
         # Simple hard limiter
