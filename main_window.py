@@ -83,7 +83,9 @@ class MainWindow(QMainWindow):
             btn.setChecked(False)
             btn.clicked.connect(lambda checked, o=osc, b=btn: self.toggle_oscillator(o, b))
             self.hide_buttons.append(btn)
+            btn.setMaximumWidth(150)
             control_layout.addWidget(btn)
+
 
         main_layout.addLayout(control_layout, 0, 0, 1, 2)
 
@@ -91,6 +93,7 @@ class MainWindow(QMainWindow):
         self.toggle_info_button = QPushButton("Hide FFT Window")
         self.toggle_info_button.setCheckable(True)
         self.toggle_info_button.clicked.connect(self.toggle_info_window)
+        self.toggle_info_button.setMaximumWidth(150)
         # Add the button to your layout (e.g., in the control panel)
         control_layout.addWidget(self.toggle_info_button)
 
@@ -104,12 +107,8 @@ class MainWindow(QMainWindow):
 
         # Synth Panel
         self.synth_panel = SynthPanel(self.oscillators, self.generator)
+        self.synth_panel.setMaximumSize(400, 800)
         main_layout.addWidget(self.synth_panel, 1, 1)
-
-        # Play Button
-        play_button = QPushButton("Play Sound")
-        play_button.clicked.connect(self.on_click)
-        main_layout.addWidget(play_button, 2, 0, 1, 2)  # Span across two columns
 
         # Set the main layout
         central_widget = QWidget()
@@ -124,7 +123,6 @@ class MainWindow(QMainWindow):
             oscillator.show()
             button.setText(f"Hide {oscillator.name}")
 
-        # Adjust the main window size to fit the visible widgets
         self.adjustSize()
 
     def toggle_info_window(self):
@@ -158,7 +156,7 @@ class MainWindow(QMainWindow):
 
     def initAudioStream(self):
         self.stream = sd.OutputStream(
-            samplerate=44100,
+            samplerate=self.generator.sample_rate,
             channels=2,  # Number of output channels for stereo
             callback=self.audio_callback  # Ensure this method is defined
         )
@@ -197,30 +195,6 @@ class MainWindow(QMainWindow):
     def handle_controller(self, controller_number, controller_value):
         # Obsługa kontrolerów MIDI, jeśli potrzebne
         print(f"CONTROLLER {controller_number}: {controller_value}")
-
-    def on_click(self):
-        # Przycisk Play może generować podstawową falę
-        for osc in self.oscillators:
-            osc.reference_frequency = 440
-            osc.update_plots()
-        self.on_play(velocity=100)
-
-    def on_play(self, velocity=127.0):
-        print("Playing mixed sound...")
-
-        # Synth panel processing
-        processed_signal = self.synth_panel.process_signal()
-
-        # Normalizacja
-        max_val = np.max(np.abs(processed_signal))
-        if max_val > 0:
-            processed_signal = processed_signal / max_val
-
-        volume = 0.2 * (velocity / 127.0)
-        processed_signal *= volume
-        playback_signal = processed_signal.T
-
-        sd.play(playback_signal, samplerate=self.generator.sample_rate, blocking=True)
 
     def update_plots(self):
         # Aktualizacja wykresów dla wszystkich oscylatorów

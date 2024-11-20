@@ -72,7 +72,6 @@ class OscillatorWidget(QWidget):
                                                      defaul_value=self.fine_tune)
         controls_layout.addWidget(self.dial_fine_tune)
 
-
         # Save Csv Button
         button_save_layout = QVBoxLayout()
         self.button_csv_save = self.create_button("Save to .csv", self.save_csv)

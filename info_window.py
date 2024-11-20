@@ -1,7 +1,11 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout
-from PyQt6.QtCore import pyqtSignal, pyqtSlot
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QPushButton, QFileDialog
+)
+from PyQt6.QtCore import pyqtSignal, pyqtSlot, Qt
+import pandas as pd
 import pyqtgraph as pg
 import numpy as np
+from scipy.io.wavfile import write
 
 class InfoWindow(QMainWindow):
     update_data_signal = pyqtSignal(np.ndarray)
@@ -13,7 +17,6 @@ class InfoWindow(QMainWindow):
         self.main_window = main_window
         self.setWindowTitle("Info Window")
         self.initUI()
-
 
         # Connect the signals to the update methods
         self.update_data_signal.connect(self.update_displays)
@@ -53,8 +56,21 @@ class InfoWindow(QMainWindow):
         self.plot_frozen_waveform.showGrid(x=True, y=True, alpha=0.3)
         layout.addWidget(self.plot_frozen_waveform)
 
+        # Buttons for Saving
+        buttons_layout = QHBoxLayout()
+        self.button_csv_save = self.create_button("Save to .csv", self.save_csv)
+        buttons_layout.addWidget(self.button_csv_save)
+        self.button_wav_save = self.create_button("Save to .wav", self.save_wav)
+        buttons_layout.addWidget(self.button_wav_save)
+        layout.addLayout(buttons_layout)
+
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
+
+    def create_button(self, title, callback):
+        button = QPushButton(title)
+        button.clicked.connect(callback)
+        return button
 
     def update_info(self, samples, sample_rate=44100):
         if not self.is_recording:
@@ -65,7 +81,6 @@ class InfoWindow(QMainWindow):
         if not self.main_window.generator.has_active_notes():
             # No active notes; stop recording and freeze the display
             self.stop_recording()
-
 
     def update_displays(self, samples):
         try:
@@ -138,19 +153,65 @@ class InfoWindow(QMainWindow):
 
         # Concatenate recorded samples
         if self.recorded_samples:
-            full_samples = np.concatenate(self.recorded_samples)
-            N = len(full_samples)
-            t = np.linspace(0, N / self.sample_rate, N)
+            self.full_samples = np.concatenate(self.recorded_samples)
+            N = len(self.full_samples)
+            self.t = np.linspace(0, N / self.sample_rate, N)
 
             # Update frozen waveform plot
             self.plot_frozen_waveform.clear()
-            self.plot_frozen_waveform.plot(t, full_samples, pen='m')
-            self.plot_frozen_waveform.setXRange(0, t[-1])
-            self.plot_frozen_waveform.setYRange(full_samples.min() * 1.1, full_samples.max() * 1.1)
+            self.plot_frozen_waveform.plot(self.t, self.full_samples, pen='m')
+            self.plot_frozen_waveform.setXRange(0, self.t[-1])
+            self.plot_frozen_waveform.setYRange(self.full_samples.min() * 1.1, self.full_samples.max() * 1.1)
 
             # Calculate and plot the envelope
-            envelope = np.abs(full_samples)
-            self.plot_frozen_waveform.plot(t, envelope, pen='r')
+            envelope = np.abs(self.full_samples)
+            self.plot_frozen_waveform.plot(self.t, envelope, pen='r')
 
         else:
             print("No samples recorded.")
+
+    def save_csv(self):
+        if not hasattr(self, 'full_samples'):
+            QMessageBox.warning(self, "Warning", "No waveform data to save. Please record a waveform first.")
+            return
+
+        default_filename = "waveform.csv"
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save .csv File", default_filename, "CSV Files (*.csv)")
+
+        if not file_path:
+            return  # User canceled the save dialog
+
+        try:
+            data = {"Time": self.t, "Amplitude": self.full_samples}
+            dataframe = pd.DataFrame(data)
+            dataframe.to_csv(file_path, index=False)
+            print(f"Data saved to: {file_path}")
+
+            QMessageBox.information(self, "Success", f"File saved as:\n{file_path}")
+        except Exception as e:
+            print(f"Error saving file: {e}")
+            QMessageBox.critical(self, "Error", f"Couldn't save the file:\n{e}")
+
+    def save_wav(self):
+        if not hasattr(self, 'full_samples'):
+            QMessageBox.warning(self, "Warning", "No waveform data to save. Please record a waveform first.")
+            return
+
+        default_filename = "waveform.wav"
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save .wav File", default_filename, "WAV Files (*.wav)")
+
+        if not file_path:
+            return  # User canceled the save dialog
+
+        y = self.full_samples
+        y_normalized = y / np.max(np.abs(y)) if np.max(np.abs(y)) != 0 else y
+        y_int16 = np.int16(y_normalized * 32767)
+
+        try:
+            write(file_path, int(self.sample_rate), y_int16)
+            print(f"Data saved to: {file_path}")
+
+            QMessageBox.information(self, "Success", f"File saved as:\n{file_path}")
+        except Exception as e:
+            print(f"Error saving file: {e}")
+            QMessageBox.critical(self, "Error", f"Couldn't save the file:\n{e}")
